@@ -5,7 +5,7 @@ root_agent = Agent(
     name='root_agent',
     description='A helpful assistant for user questions.',
     instruction='Answer user questions to the best of your knowledge',
-    tools=['get_weather']
+    tools=[get_weather]
 )
 
 def get_weather(location: str) -> dict:
@@ -16,7 +16,6 @@ def get_weather(location: str) -> dict:
         location: The name of the city to retrieve weather for
     """
     return {"location": location, "weather": "Sunny"}
-
 # search_agent = LlmAgent(
 #     model='gemini-3.5-flash',
 #     name="WebSearchAgent",
