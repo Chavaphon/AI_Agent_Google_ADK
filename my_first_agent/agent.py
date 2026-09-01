@@ -1,5 +1,5 @@
 from google.adk.agents.llm_agent import Agent
-from google.adk.agents import SequentialAgent
+from google.adk.agents import SequentialAgent, ParallelAgent
 
 story_writer = Agent(
     name="story_writer",
@@ -20,7 +20,22 @@ thai_translator = Agent(
     """
 )
 
+japanese_translator = Agent(
+    name="japanese_translator",
+    model="gemini-3.5-flash",
+    instruction="""
+    You are a professional English-to-Japanese translator.
+    Translate the provided English story into natural, fluent Japanese.
+    Output ONLY the translated Japanese text.
+    """
+)
+
+parallel_translators = ParallelAgent(
+    name="parallel_translators",
+    sub_agents=[thai_translator, japanese_translator]
+)
+
 root_agent = SequentialAgent(
     name="root_agent",
-    sub_agents=[story_writer, thai_translator]
+    sub_agents=[story_writer, parallel_translators]
 )
