@@ -1,5 +1,12 @@
 from google.adk.agents import Agent
 from google.adk.tools import ToolContext
+from google.adk.sessions import DatabaseSessionService
+from google.adk.runners import Runner
+from google.genai import types
+import asyncio
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Session-Level State
 # def update_user_preference(state, preference_key: str, preference_value: str, tool_context: ToolContext) -> dict:
@@ -41,3 +48,53 @@ root_agent = Agent(
     instruction="You help manage user settings. Update state when requested.",
     tools=[set_user_profile, get_user_profile]
 )
+
+# Persistant Database
+session_service = DatabaseSessionService(db_url="sqlite+aiosqlite:///agent_data.db")
+
+runner = Runner(
+    app_name="my_first_agent",
+    agent=root_agent,
+    session_service=session_service,
+    auto_create_session=True
+)
+
+# Test
+async def main():
+    session_id = "session_001"
+    user_id = "user_42"
+
+    # Now execute turn 1
+    user_message1 = types.Content(
+        role="user",
+        parts=[types.Part.from_text(text="Save my preferred language as Japanese.")]
+    )
+
+    events1 = runner.run(
+        session_id=session_id,
+        user_id=user_id,
+        new_message=user_message1
+    )
+
+    for event in events1:
+        if event.is_final_response():
+            print("Agent1:", event.content.parts[0].text)
+    
+    # Now execute turn 2
+    user_message2 = types.Content(
+        role="user",
+        parts=[types.Part.from_text(text="What is my preferred language?")]
+    )
+
+    events2 = runner.run(
+        session_id="session_002",
+        user_id=user_id,
+        new_message=user_message2
+    )
+
+    for event in events2:
+        if event.is_final_response():
+            print("Agent2:", event.content.parts[0].text)
+
+if __name__ == "__main__":
+    asyncio.run(main())
