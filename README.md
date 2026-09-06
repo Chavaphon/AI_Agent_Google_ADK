@@ -12,7 +12,7 @@ A hands-on learning series for building AI agents with [Google Agent Development
 | `Video-2` | Custom Tools & Code Execution |
 | `Video-3` | Multi-Agent Orchestration (Sequential + Parallel) |
 | `Video-4` | Stateful Agents & Persistent Session (SQLite) |
-| `Video-5` | Upgraded Model & Automated Testing with pytest |
+| `Video-5` | Updated Model & Automated Testing with pytest |
 | `main` | Latest state (mirrors Video-4/5 with user-level state) |
 
 ---
@@ -109,9 +109,9 @@ The branch includes `agent_data.db` (the SQLite file) committed to the repo as a
 
 ---
 
-### `Video-5` — Model Upgrade & Automated Testing
+### `Video-5` — Model Update & Automated Testing
 
-Upgrades the agent model from `gemini-3.5-flash` to `gemini-2.5-flash` and adds a `pytest`-based test suite using `InMemoryRunner` for fast, side-effect-free agent testing.
+Updates the agent model from `gemini-3.5-flash` to `gemini-2.5-flash` and adds a `pytest`-based test suite using `InMemoryRunner` for fast, side-effect-free agent testing.
 
 **`test_agent.py`:**
 ```python
