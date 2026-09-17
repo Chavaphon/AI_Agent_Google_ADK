@@ -33,13 +33,23 @@ load_dotenv()
 
 # User-Level State
 def set_user_profile(key: str, value: str, tool_context: ToolContext) -> str:
-    """Saves a setting to the user's global profile across sessions."""
+    """
+    Saves a setting to the user's global profile across sessions.
+    
+    Args:
+        key : name of the key. Do not include "user:"
+    """
     # Prefixing with 'user:' designates user-level scope
     tool_context.state[f"user:{key}"] = value
     return f"Saved user preference: {key} = {value}"
 
 def get_user_profile(key: str, tool_context: ToolContext) -> str:
-    """Retrieves a setting from the user's global profile."""
+    """
+    Retrieves a setting from the user's global profile.
+    
+    Args:
+        key : name of the key. Do not include "user:"
+    """
     value = tool_context.state.get(f"user:{key}")
     if value is None:
         return f"No user setting found for '{key}'."
