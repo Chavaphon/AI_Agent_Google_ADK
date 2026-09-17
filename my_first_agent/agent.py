@@ -80,7 +80,7 @@ async def main():
     # Now execute turn 1
     user_message1 = types.Content(
         role="user",
-        parts=[types.Part.from_text(text="Save my preferred language as Japanese.")]
+        parts=[types.Part.from_text(text="Save \'car\' as Toyota")]
     )
 
     events1 = runner.run(
@@ -96,7 +96,7 @@ async def main():
     # Now execute turn 2
     user_message2 = types.Content(
         role="user",
-        parts=[types.Part.from_text(text="What is my preferred language?")]
+        parts=[types.Part.from_text(text="Check the state \'car\'")]
     )
 
     events2 = runner.run(
