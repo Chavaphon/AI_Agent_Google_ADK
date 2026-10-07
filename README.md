@@ -1,227 +1,125 @@
 # AI Agent Google ADK
 
-A hands-on learning series for building AI agents with [Google Agent Development Kit (ADK)](https://google.github.io/adk-docs/). Each branch corresponds to a video tutorial and progressively introduces more advanced ADK concepts — from a minimal "hello world" agent all the way to persistent state, multi-agent orchestration, and automated testing.
+A hands-on tutorial series for building AI agents with [Google Agent Development Kit (ADK)](https://adk.dev/) and Gemini. Each branch goes with one video and teaches one concept, starting from a minimal "hello world" agent and moving on to tools, multi-agent pipelines, persistent memory, testing and deployment to Google Cloud Run.
 
----
+Every branch has its own README with a full walkthrough, setup steps and things to try.
 
-## Branch Overview
+## Branches
 
-| Branch | Topic |
-|---|---|
-| `Video-1` | Minimal LLM Agent |
-| `Video-2` | Custom Tools & Code Execution |
-| `Video-3` | Multi-Agent Orchestration (Sequential + Parallel) |
-| `Video-4` | Stateful Agents & Persistent Session (SQLite) |
-| `Video-5` | Updated Model & Automated Testing with pytest |
-| `main` | Latest state (mirrors Video-4/5 with user-level state) |
+| Branch | Topic | You'll learn |
+|---|---|---|
+| [`Video-1`](https://github.com/Chavaphon/AI_Agent_Google_ADK/tree/Video-1) | Your First Agent | `Agent`, `model`, `instruction`, `root_agent`, `adk web` / `adk run` |
+| [`Video-2`](https://github.com/Chavaphon/AI_Agent_Google_ADK/tree/Video-2) | Custom Tools | Python functions as tools, docstrings & type hints, a live weather API (plus an earlier look at built-in tools) |
+| [`Video-3`](https://github.com/Chavaphon/AI_Agent_Google_ADK/tree/Video-3) | Multi-Agent Orchestration | `SequentialAgent`, `ParallelAgent`, `sub_agents` |
+| [`Video-4`](https://github.com/Chavaphon/AI_Agent_Google_ADK/tree/Video-4) | Stateful Agents & SQLite Persistence | `ToolContext`, `user:` state scope, `DatabaseSessionService`, `Runner` |
+| [`Video-5`](https://github.com/Chavaphon/AI_Agent_Google_ADK/tree/Video-5) | Automated Testing & Cloud Run Deployment | `InMemoryRunner`, `pytest-asyncio`, `requirements.txt`, `adk deploy cloud_run` |
+| `main` | Series overview | This README, plus the Video-4 stateful agent (merged in PR #1) |
 
----
+> **Each branch is self-contained.** Video-2 to Video-5 all start from the Video-1 agent and add **one** concept, rather than building on each other. For example, Video-5 doesn't include the state or multi-agent code from Video-3 and Video-4. That keeps each lesson small and easy to read.
 
-## Branch Details
+## Learning path
 
-### `Video-1` — Your First Agent
-
-A minimal working agent using `google.adk.agents.llm_agent.Agent`. No tools, no state — just an LLM wired up and ready to chat.
-
-```python
-from google.adk.agents.llm_agent import Agent
-
-root_agent = Agent(
-    model='gemini-3.5-flash',
-    name='root_agent',
-    description='A helpful assistant for user questions.',
-    instruction='Answer user questions to the best of your knowledge',
-)
+```
+Video-1 ──► Video-2 ──► Video-3 ──► Video-4 ──► Video-5
+First       Custom      Multi-agent  State &      Testing &
+agent       tools       pipelines    persistence  Cloud Run
 ```
 
-**Concepts covered:** `Agent`, `model`, `instruction`, `description`
+### Video-1: Your First Agent
 
----
+A single Gemini model with an instruction, and nothing else. It introduces the folder layout ADK expects (`__init__.py`, `agent.py`, `.env`) and the `root_agent` entry point.
 
-### `Video-2` — Custom Tools & Code Execution
+### Video-2: Custom Tools
 
-Extends Video-1 by adding a custom Python tool (`get_weather`) and enabling the `BuiltInCodeExecutor` so the agent can write and run code during a conversation.
+Adds a `get_weather(city)` tool that calls the [wttr.in](https://wttr.in) API for **live** weather, and shows how the model uses the docstring and type hints to decide when and how to call it. The branch history also has an earlier experiment with built-in tools (`BuiltInCodeExecutor`, and `google_search`, which caused `429 RESOURCE_EXHAUSTED` on the free tier).
 
-```python
-from google.adk.code_executors import BuiltInCodeExecutor
+### Video-3: Multi-Agent Orchestration
 
-def get_weather(location: str) -> dict:
-    """Retrieves the weather for a given location."""
-    return {"location": location, "weather": "Sunny"}
-
-root_agent = Agent(
-    ...
-    tools=[get_weather],
-    code_executor=BuiltInCodeExecutor(),
-)
-```
-
-**Concepts covered:** custom tool functions, `BuiltInCodeExecutor`, `GenerateContentConfig`, `tool_config`
-
-> **Note:** The branch also includes a commented-out `google_search` tool reference with a warning that it causes `429 RESOURCE_EXHAUSTED` errors under the free tier.
-
----
-
-### `Video-3` — Multi-Agent Orchestration
-
-Demonstrates how to compose multiple specialized agents using `SequentialAgent` and `ParallelAgent`. A story-writing pipeline is built where one agent writes an English short story, then two translation agents run **in parallel** to produce Thai and Japanese versions simultaneously.
+A story pipeline. A `story_writer` writes an English story, then a `ParallelAgent` runs a Thai translator and a Japanese translator **at the same time**, all wrapped in a `SequentialAgent`.
 
 ```
 root_agent (SequentialAgent)
-├── story_writer        → writes English story
+├── story_writer
 └── parallel_translators (ParallelAgent)
-    ├── thai_translator → translates to Thai
-    └── japanese_translator → translates to Japanese
+    ├── thai_translator
+    └── japanese_translator
 ```
 
-**Concepts covered:** `SequentialAgent`, `ParallelAgent`, sub-agents, agent pipelines
+### Video-4: Stateful Agents & SQLite Persistence
 
----
+Tools read and write `tool_context.state["user:<key>"]`. The `user:` prefix makes a value available in **every session of the same user**. Sessions are stored in SQLite with `DatabaseSessionService` (`sqlite+aiosqlite:///agent_data.db`), and a `Runner` script shows a value saved in `session_001` being read back from `session_002`.
 
-### `Video-4` — Stateful Agents & SQLite Persistence
+### Video-5: Automated Testing & Cloud Run Deployment
 
-Introduces session state and a persistent database backend. User preferences are stored with a `user:` key prefix, which makes them survive across different sessions for the same user. The agent uses `DatabaseSessionService` backed by SQLite via `aiosqlite`.
+A simple agent with a `get_day` tool, a `pytest` test that runs it through `InMemoryRunner` and checks it really used the tool, pinned dependencies in `requirements.txt`, and deployment to **Google Cloud Run** with `adk deploy cloud_run`.
 
-```python
-from google.adk.sessions import DatabaseSessionService
-from google.adk.runners import Runner
-from google.adk.tools import ToolContext
+## What's on `main`
 
-def set_user_profile(key: str, value: str, tool_context: ToolContext) -> str:
-    tool_context.state[f"user:{key}"] = value
-    return f"Saved user preference: {key} = {value}"
+`main` holds the Video-4 stateful agent with a slightly different demo: it saves *"my preferred language as Japanese"* in one session and asks *"What is my preferred language?"* in another. Run it from inside the agent folder:
 
-session_service = DatabaseSessionService(db_url="sqlite+aiosqlite:///agent_data.db")
-
-runner = Runner(
-    app_name="my_first_agent",
-    agent=root_agent,
-    session_service=session_service,
-    auto_create_session=True
-)
+```bash
+cd my_first_agent
+python agent.py
 ```
 
-The branch includes `agent_data.db` (the SQLite file) committed to the repo as a demo artifact.
+## Getting started
 
-**Concepts covered:** `ToolContext`, session-level vs user-level state (`user:` prefix), `DatabaseSessionService`, `Runner`, `auto_create_session`, `asyncio`
-
-> The branch also contains commented-out code showing **session-level** state (without the `user:` prefix) as a contrast.
-
----
-
-### `Video-5` — Model Update & Automated Testing
-
-Updates the agent model from `gemini-3.5-flash` to `gemini-2.5-flash` and adds a `pytest`-based test suite using `InMemoryRunner` for fast, side-effect-free agent testing.
-
-**`test_agent.py`:**
-```python
-import pytest
-from google.adk.runners import InMemoryRunner
-from agent import root_agent
-
-@pytest.mark.asyncio
-async def test_agent_execution():
-    runner = InMemoryRunner(agent=root_agent)
-    response = await runner.run_debug("Calculate 10 + 5", verbose=False)
-    assert "15" in str(response[-1])
-```
-
-Also the first branch to include a `requirement.txt` with pinned dependencies (key ones: `google-adk==2.8.0`, `google-genai==2.20.0`, `aiosqlite==0.22.1`, `dotenv==0.9.9`, `fastapi==0.141.1`).
-
-**Concepts covered:** `InMemoryRunner`, `run_debug`, `pytest-asyncio`, dependency pinning
-
----
-
-## Project Structure
-
-```
-my_first_agent/
-├── __init__.py        # Exports the agent module
-├── agent.py           # Agent definition (varies per branch)
-├── test_agent.py      # Pytest suite (Video-5+ only)
-└── agent_data.db      # SQLite session store (Video-4+ only)
-requirement.txt        # Pinned dependencies (Video-5 only)
-.gitignore
-README.md
-```
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.10+
-- A Google AI API key (Gemini)
-
-### Installation
+**Prerequisites:** Python 3.10+ and a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey).
 
 ```bash
 git clone https://github.com/Chavaphon/AI_Agent_Google_ADK.git
 cd AI_Agent_Google_ADK
+git checkout Video-1          # or any branch you want to explore
 
-# Check out the branch you want to explore
-git checkout Video-5
+python -m venv .venv
+# Windows: .venv\Scripts\activate    macOS / Linux: source .venv/bin/activate
 
-# Install dependencies
-pip install google-adk python-dotenv aiosqlite
-# Or, on Video-5, use the pinned requirements:
-pip install -r requirement.txt
+pip install google-adk        # see each branch's README for extra packages
 ```
 
-### Configuration
-
-Create a `.env` file in the project root:
+Create `my_first_agent/.env` (it's git-ignored):
 
 ```env
+GOOGLE_GENAI_USE_ENTERPRISE=0
 GOOGLE_API_KEY=your_api_key_here
 ```
 
-### Running the Agent
+Then, from the repository root:
 
 ```bash
-# Interactive web UI (ADK Dev UI)
-adk web
-
-# Or run the agent script directly (Video-4/main)
-python my_first_agent/agent.py
+adk web                  # ADK Dev UI at http://localhost:8000
+adk run my_first_agent   # chat in the terminal
 ```
 
-### Running Tests (Video-5)
-
-```bash
-pip install pytest pytest-asyncio
-pytest my_first_agent/test_agent.py -v
-```
-
----
-
-## Key Dependencies
-
-| Package | Purpose |
-|---|---|
-| `google-adk` | Agent Development Kit — agent types, runners, sessions |
-| `google-genai` | Gemini model API client |
-| `aiosqlite` | Async SQLite driver for persistent sessions |
-| `python-dotenv` | Load API keys from `.env` |
-| `pytest-asyncio` | Async test support for pytest |
-
----
-
-## Learning Path
-
-Follow the branches in order for a guided progression:
+## Project structure
 
 ```
-Video-1 → Video-2 → Video-3 → Video-4 → Video-5
-  ↓           ↓          ↓           ↓          ↓
-Basic      Tools &   Multi-     Persistent  Testing &
-Agent     Code Exec  Agent      Sessions   Model v2
+AI_Agent_Google_ADK/
+├── my_first_agent/
+│   ├── __init__.py       # Exposes the agent module to ADK
+│   ├── agent.py          # Agent definition (different on every branch)
+│   ├── .env              # Your API key (not committed)
+│   ├── agent_data.db     # SQLite session store (Video-4 and main)
+│   └── test_agent.py     # pytest test (Video-5)
+├── requirements.txt      # Pinned dependencies (Video-5)
+├── .gitignore
+└── README.md
 ```
 
----
+## Key dependencies
+
+| Package | Used in | Purpose |
+|---|---|---|
+| `google-adk` | All | Agent types, tools, runners, sessions, CLI (`adk web`, `adk deploy`) |
+| `google-genai` | All (installed with ADK) | Gemini API client and `types.Content` |
+| `requests` | Video-2 | HTTP calls to the weather API |
+| `aiosqlite` | Video-4, main | Async SQLite driver for `DatabaseSessionService` |
+| `python-dotenv` | Video-4, Video-5, main | Load `.env` when running scripts or tests directly |
+| `pytest`, `pytest-asyncio` | Video-5 | Async agent tests |
 
 ## Resources
 
-- [Google ADK Documentation](https://google.github.io/adk-docs/)
+- [Google ADK documentation](https://adk.dev/)
+- [Deploying ADK agents to Cloud Run](https://adk.dev/deploy/cloud-run/)
 - [Gemini API](https://ai.google.dev/)
+- [Google AI Studio (API keys)](https://aistudio.google.com/apikey)
