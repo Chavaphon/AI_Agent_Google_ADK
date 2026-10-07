@@ -122,42 +122,167 @@ python -m pytest test_agent.py -v
 
 `adk deploy cloud_run` packages the agent folder into a container, builds it with Cloud Build and deploys it to Cloud Run. You don't need to write a Dockerfile. (This branch first tried a hand-written Dockerfile in commit [`6717ae8`](https://github.com/Chavaphon/AI_Agent_Google_ADK/commit/6717ae8). It was removed in the deployment commit [`0ed06b9`](https://github.com/Chavaphon/AI_Agent_Google_ADK/commit/0ed06b9), which also switched the model to `gemini-2.5-flash`.)
 
-**Prerequisites**
+> **How the deployed agent reaches Gemini:** locally the agent uses the API key in `.env`, but `.env` is **not** uploaded (`adk deploy` skips files listed in `my_first_agent/.gitignore`). The container ADK builds is set up to use **Vertex AI** in your project instead (`GOOGLE_GENAI_USE_ENTERPRISE=1`). That's why the steps below enable the Vertex AI API and give Cloud Run's service account the *Vertex AI User* role.
 
-- A Google Cloud project with billing enabled
-- The [Google Cloud CLI](https://cloud.google.com/sdk/docs/install), logged in:
+**Prerequisites:** a Google Cloud project with billing enabled.
 
-```bash
-gcloud auth login
-gcloud config set project YOUR_PROJECT_ID
+The commands below are for **Windows PowerShell** and are meant to be run in order, in **one terminal**, from the repository root. A macOS / Linux (bash) version is further down.
+
+### 1. Install and set up the Google Cloud CLI
+
+```powershell
+winget install -e --id Google.CloudSDK
+
+# Allow PowerShell to run the gcloud script, and add gcloud to PATH for this terminal
+# (or just open a new terminal after installing)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+$env:Path += ";$env:LOCALAPPDATA\Google\Cloud SDK\google-cloud-sdk\bin"
+
+gcloud --version
+gcloud init              # log in and choose a default project
+gcloud projects list     # find your project ID
 ```
 
-**Deploy** (run from the repository root):
+### 2. Set your project and enable the APIs
 
-```bash
-# Windows PowerShell: use $env:GOOGLE_CLOUD_PROJECT="..." instead of export
-export GOOGLE_CLOUD_PROJECT="your-project-id"
-export GOOGLE_CLOUD_LOCATION="us-central1"
+Replace `your-project-id` with your own project ID. The other values can stay as they are.
 
-adk deploy cloud_run \
-  --project=$GOOGLE_CLOUD_PROJECT \
-  --region=$GOOGLE_CLOUD_LOCATION \
-  --service_name=my-first-agent \
-  --with_ui \
+```powershell
+$PROJECT_ID = "your-project-id"
+$REGION     = "us-central1"
+$SERVICE    = "my-first-agent"
+
+gcloud config set project $PROJECT_ID
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com aiplatform.googleapis.com
+```
+
+These variables only exist in the current terminal. If you open a new one, run the three `$... =` lines again.
+
+### 3. Allow Cloud Run to call Vertex AI
+
+Cloud Run services run as your project's default Compute Engine service account (`PROJECT_NUMBER-compute@developer.gserviceaccount.com`). Give it the *Vertex AI User* role:
+
+```powershell
+$PROJECT_NUM = gcloud projects describe $PROJECT_ID --format="value(projectNumber)"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID `
+  --member="serviceAccount:${PROJECT_NUM}-compute@developer.gserviceaccount.com" `
+  --role="roles/aiplatform.user" `
+  --condition=None
+```
+
+### 4. Deploy
+
+```powershell
+adk deploy cloud_run `
+  --project=$PROJECT_ID `
+  --region=$REGION `
+  --service_name=$SERVICE `
+  --app_name=my_first_agent `
   ./my_first_agent
 ```
 
-- `--with_ui` also deploys the ADK Dev UI, so you can chat with the agent in the browser. Leave it out to deploy the API server only.
-- When it finishes, the command prints the service URL. Open it to use the deployed agent.
+- The first deploy takes a few minutes. If `gcloud` asks to create an Artifact Registry repository, answer `y`.
+- If it asks **"Allow unauthenticated invocations?"**, answer `y` for this tutorial, because the test in step 5 sends no auth token. Anyone who has the URL can then call your agent and use your quota, so delete the service when you're done (see *Clean up*).
+- `--app_name` is the `appName` you use in API calls (step 5). It defaults to the folder name.
 - If the agent needs extra packages, put a `requirements.txt` **inside** `my_first_agent/` so they're installed in the container.
 
-For authentication options (API key secret vs. Vertex AI) and the full flag list, see the [ADK Cloud Run guide](https://adk.dev/deploy/cloud-run/).
+### 5. Test the deployed agent
 
-**Clean up** when you're done, so you aren't billed:
+This looks up the service URL, creates a new session, then sends a message to the `/run` endpoint:
+
+```powershell
+$SERVICE_URL = gcloud run services describe $SERVICE --region=$REGION --format="value(status.url)"
+$USER_ID     = "user_123"
+$SESSION_ID  = "session_$(Get-Date -Format yyyyMMddHHmmss)"
+
+# Create a session
+Invoke-RestMethod -Method Post -Uri "$SERVICE_URL/apps/my_first_agent/users/$USER_ID/sessions/$SESSION_ID"
+
+# Send a message
+$body = @{
+  appName    = "my_first_agent"
+  userId     = $USER_ID
+  sessionId  = $SESSION_ID
+  newMessage = @{
+    role  = "user"
+    parts = @(@{ text = "What day is today?" })
+  }
+} | ConvertTo-Json -Depth 5
+
+$response = Invoke-RestMethod -Method Post -Uri "$SERVICE_URL/run" -ContentType "application/json" -Body $body
+$response.content.parts.text
+```
+
+The last line prints the agent's reply, for example *"Today is Wednesday."* Each run uses a new session ID, so you can run the block again.
+
+### Clean up
+
+Delete the service when you're done, so you aren't billed and the public URL stops working:
+
+```powershell
+gcloud run services delete $SERVICE --region=$REGION
+```
+
+The container images are stored in the Artifact Registry repository `cloud-run-source-deploy`. If nothing else in your project uses that repository, you can delete it too: `gcloud artifacts repositories delete cloud-run-source-deploy --location=$REGION`.
+
+<details>
+<summary><b>macOS / Linux (bash) version</b></summary>
+
+Install the Google Cloud CLI by following the [official instructions](https://cloud.google.com/sdk/docs/install) (on macOS with Homebrew: `brew install --cask google-cloud-sdk`), then run from the repository root:
 
 ```bash
-gcloud run services delete my-first-agent --region=$GOOGLE_CLOUD_LOCATION
+gcloud init
+
+PROJECT_ID="your-project-id"
+REGION="us-central1"
+SERVICE="my-first-agent"
+
+gcloud config set project "$PROJECT_ID"
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com aiplatform.googleapis.com
+
+PROJECT_NUM=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${PROJECT_NUM}-compute@developer.gserviceaccount.com" \
+  --role="roles/aiplatform.user" \
+  --condition=None
+
+adk deploy cloud_run \
+  --project="$PROJECT_ID" \
+  --region="$REGION" \
+  --service_name="$SERVICE" \
+  --app_name=my_first_agent \
+  ./my_first_agent
 ```
+
+Test it:
+
+```bash
+SERVICE_URL=$(gcloud run services describe "$SERVICE" --region="$REGION" --format="value(status.url)")
+USER_ID="user_123"
+SESSION_ID="session_$(date +%Y%m%d%H%M%S)"
+
+curl -X POST "$SERVICE_URL/apps/my_first_agent/users/$USER_ID/sessions/$SESSION_ID"
+
+curl -X POST "$SERVICE_URL/run" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "appName": "my_first_agent",
+    "userId": "'"$USER_ID"'",
+    "sessionId": "'"$SESSION_ID"'",
+    "newMessage": {"role": "user", "parts": [{"text": "What day is today?"}]}
+  }'
+```
+
+Clean up:
+
+```bash
+gcloud run services delete "$SERVICE" --region="$REGION"
+```
+
+</details>
+
+For more options (custom service accounts, `--with_ui`, the full flag list), see the [ADK Cloud Run guide](https://adk.dev/deploy/cloud-run/).
 
 ---
 
